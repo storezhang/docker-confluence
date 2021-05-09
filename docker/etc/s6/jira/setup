@@ -1,0 +1,86 @@
+#!/bin/sh
+
+# 创建主目录
+if [ ! -d "${JIRA_HOME}" ]; then
+  gosu "${USERNAME}" mkdir "${JIRA_HOME}"
+
+  # 创建工作目录
+  gosu "${USERNAME}" mkdir "${JIRA_HOME}/work"
+fi
+
+
+# 判断是否是安全连接
+if [ "${PROXY_SCHEME}" = "https" ] || [ "${PROXY_SCHEME}" = "HTTPS" ] || [ "${PROXY_SCHEME}" = "Https" ]; then
+  export secure="true"
+else
+  export secure="false"
+fi
+
+# 注入反代参数以及日志主目录
+CATALINA_OPTS="${CATALINA_OPTS} -Dproxy.name=${PROXY_DOMAIN}"
+CATALINA_OPTS="${CATALINA_OPTS} -Dproxy.port=${PROXY_PORT}"
+CATALINA_OPTS="${CATALINA_OPTS} -Dproxy.secure=${secure}"
+CATALINA_OPTS="${CATALINA_OPTS} -Dproxy.scheme=${PROXY_SCHEME}"
+CATALINA_OPTS="${CATALINA_OPTS} -Dcontext.path=${CONTEXT_PATH}"
+CATALINA_OPTS="${CATALINA_OPTS} -Djira.home=${JIRA_HOME}"
+
+
+
+# 将默认的数据库配置文件移动到主目录
+dbConfigFile=${JIRA_HOME}/dbconfig.xml
+if [ ! -f "${dbConfigFile}" ]; then
+  dbType="${DB_TYPE}"
+  dbUser="${DB_USER}"
+  dbPassword="${DB_PASSWORD}"
+  if [ "${DB_TYPE}" = "mysql5" ]; then
+    dbDriver="com.mysql.jdbc.Driver"
+    dbUrl="jdbc:mysql://address=(protocol=tcp)(host=${DB_HOST})(port=${DB_PORT})/${DB_NAME}?sessionVariables=default_storage_engine=InnoDB"
+  elif [ "${DB_TYPE}" = "mysql8" ]; then
+    dbDriver="com.mysql.cj.jdbc.Driver"
+    dbUrl="jdbc:mysql://address=(protocol=tcp)(host=${DB_HOST})(port=${DB_PORT})/${DB_NAME}?sessionVariables=default_storage_engine=InnoDB&amp;useSSL=false"
+  fi
+
+  gosu "${USERNAME}" cat>"${dbConfigFile}"<<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+
+<jira-database-config>
+  <name>defaultDS</name>
+  <delegator-name>default</delegator-name>
+  <database-type>${dbType}</database-type>
+  <jdbc-datasource>
+    <url>${dbUrl}</url>
+    <driver-class>${dbDriver}</driver-class>
+    <username>${dbUser}</username>
+    <password>${dbPassword}</password>
+    <pool-min-size>20</pool-min-size>
+    <pool-max-size>20</pool-max-size>
+    <pool-max-wait>30000</pool-max-wait>
+    <validation-query>select 1</validation-query>
+    <min-evictable-idle-time-millis>60000</min-evictable-idle-time-millis>
+    <time-between-eviction-runs-millis>300000</time-between-eviction-runs-millis>
+    <pool-max-idle>20</pool-max-idle>
+    <pool-remove-abandoned>true</pool-remove-abandoned>
+    <pool-remove-abandoned-timeout>300</pool-remove-abandoned-timeout>
+    <pool-test-on-borrow>false</pool-test-on-borrow>
+    <pool-test-while-idle>true</pool-test-while-idle>
+    <validation-query-timeout>3</validation-query-timeout>
+  </jdbc-datasource>
+</jira-database-config>
+
+EOF
+fi
+
+
+
+# 将主目录所有者改成系统创建的用户
+permissionFile=${JIRA_HOME}/.permission.lock
+if [ "${SET_PERMISSIONS}" = true ] && [ ! -f "${permissionFile}" ]; then
+  chown -R "${USERNAME}":"${USERNAME}" "${JIRA_HOME}"
+  chmod -R u=rwx,go-rwx "${JIRA_HOME}"
+
+  chown -R "${USERNAME}":"${USERNAME}" "${CATALINA_BASE}"
+
+  if [ ! -f "${permissionFile}" ]; then
+    gosu "${USERNAME}" touch "${permissionFile}"
+  fi
+fi
