@@ -1,4 +1,4 @@
-name: docker-jira
+name: docker-confluence
 
 on:
   push:

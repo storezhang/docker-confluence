@@ -1,11 +1,11 @@
 #!/bin/sh
 
 # 创建主目录
-if [ ! -d "${JIRA_HOME}" ]; then
-  gosu "${USERNAME}" mkdir "${JIRA_HOME}"
+if [ ! -d "${CONFLUENCE_HOME}" ]; then
+  gosu "${USERNAME}" mkdir "${CONFLUENCE_HOME}"
 
   # 创建工作目录
-  gosu "${USERNAME}" mkdir "${JIRA_HOME}/work"
+  gosu "${USERNAME}" mkdir "${CONFLUENCE_HOME}/work"
 fi
 
 
@@ -22,12 +22,12 @@ CATALINA_OPTS="${CATALINA_OPTS} -Dproxy.port=${PROXY_PORT}"
 CATALINA_OPTS="${CATALINA_OPTS} -Dproxy.secure=${secure}"
 CATALINA_OPTS="${CATALINA_OPTS} -Dproxy.scheme=${PROXY_SCHEME}"
 CATALINA_OPTS="${CATALINA_OPTS} -Dcontext.path=${CONTEXT_PATH}"
-CATALINA_OPTS="${CATALINA_OPTS} -Djira.home=${JIRA_HOME}"
+CATALINA_OPTS="${CATALINA_OPTS} -Dconfluence.home=${CONFLUENCE_HOME}"
 
 
 
 # 将默认的数据库配置文件移动到主目录
-dbConfigFile=${JIRA_HOME}/dbconfig.xml
+dbConfigFile=${CONFLUENCE_HOME}/dbconfig.xml
 if [ ! -f "${dbConfigFile}" ]; then
   dbType="${DB_TYPE}"
   dbUser="${DB_USER}"
@@ -42,7 +42,6 @@ if [ ! -f "${dbConfigFile}" ]; then
 
   gosu "${USERNAME}" cat>"${dbConfigFile}"<<EOF
 <?xml version="1.0" encoding="UTF-8"?>
-
 <jira-database-config>
   <name>defaultDS</name>
   <delegator-name>default</delegator-name>
@@ -66,17 +65,16 @@ if [ ! -f "${dbConfigFile}" ]; then
     <validation-query-timeout>3</validation-query-timeout>
   </jdbc-datasource>
 </jira-database-config>
-
 EOF
 fi
 
 
 
 # 将主目录所有者改成系统创建的用户
-permissionFile=${JIRA_HOME}/.permission.lock
+permissionFile=${CONFLUENCE_HOME}/.permission.lock
 if [ "${SET_PERMISSIONS}" = true ] && [ ! -f "${permissionFile}" ]; then
-  chown -R "${USERNAME}":"${USERNAME}" "${JIRA_HOME}"
-  chmod -R u=rwx,go-rwx "${JIRA_HOME}"
+  chown -R "${USERNAME}":"${USERNAME}" "${CONFLUENCE_HOME}"
+  chmod -R u=rwx,go-rwx "${CONFLUENCE_HOME}"
 
   chown -R "${USERNAME}":"${USERNAME}" "${CATALINA_BASE}"
 
